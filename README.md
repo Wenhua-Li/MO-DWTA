@@ -69,6 +69,12 @@ Elapsed: 12.3 s
 
 ![Ablation](assets/ablation.png)
 
+### `demo.py` 运行示例 / Demo Output
+
+运行 `python demo.py` 后，会自动生成并保存最后阶段的 Pareto 前沿：
+
+![Demo Result](assets/demo_result.png)
+
 ---
 
 ## 仓库结构 / Repository Structure
