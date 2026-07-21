@@ -17,12 +17,6 @@ RCMD-EA 的核心贡献包括：
 
 ---
 
-## 算法框架 / Framework
-
-![RCMD-EA Framework](assets/framework.png)
-
----
-
 ## 安装 / Installation
 
 ```bash
@@ -128,20 +122,3 @@ print(result.metrics)
 本项目采用 [MIT License](LICENSE)。
 
 ---
-
-## 引用 / Citation
-
-如果你使用了本代码或测试实例，请引用我们的论文：
-
-```bibtex
-@article{li2026modwta,
-  title={A Robust Constrained Multimodal Dominance Evolutionary Algorithm for Multi-objective Dynamic Weapon-Target Assignment},
-  author={Li, Wenhua},
-  journal={...},
-  year={2026},
-  publisher={...},
-  doi={...}
-}
-```
-
-> 注：期刊、卷号、页码和 DOI 将在论文正式发表后更新。
