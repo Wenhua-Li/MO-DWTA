@@ -69,11 +69,9 @@ Elapsed: 12.3 s
 
 ![Ablation](assets/ablation.png)
 
-### `demo.py` 运行示例 / Demo Output
+### RCMD 支配概念 / RCMD Dominance Concept
 
-运行 `python demo.py` 后，会自动生成并保存最后阶段的 Pareto 前沿：
-
-![Demo Result](assets/demo_result.png)
+![RCMD Concept](assets/rcmd_concept.png)
 
 ---
 
