@@ -64,6 +64,20 @@ class RCMDParams:
     warm_start: bool = True         # 是否启用上阶段DA解热启动（C5组件之一）
     # C3消融：固定后选择权重（None = 使用φ_t态势感知；0.0~1.0 = 固定α值）
     fixed_alpha: Optional[float] = None
+    # ── 修改稿新增消融开关（2026-09，审稿回复用）──
+    # disable_rcmd=True 即 -C1 变体：Phase II 选择与终选均用纯 Pareto 支配替代 RCMD，
+    # DA 档案不再做鲁棒可行过滤（保留两阶段/双档案结构/φ_t后选择，MORI 仅用于后选择打分）
+    disable_rcmd: bool = False
+    # MORI 可行性阈值的定义方式（R3-6 阈值敏感性实验）：
+    #   'mean' = 种群均值（默认，与主实验一致）
+    #   'p40' / 'p60' = 种群 40/60 百分位
+    #   'abs0' = 绝对阈值 MORI >= 0
+    mori_threshold_mode: str = 'mean'
+    # budget_aware=True（修改稿v2）：Phase II 的 MORI 采样数按剩余预算自适应缩放，
+    # 保证初始 MORI 与至少 G_target 代深化循环都在等额预算内执行。
+    # 修复原实现的预算饥饿缺陷（S_fast 过大导致深化循环 0 代 + 初始MORI超支）
+    budget_aware: bool = False
+    budget_g_target: int = 10   # budget_aware 模式下希望保证的最少深化代数
 
 
 @dataclass
@@ -153,6 +167,16 @@ def compute_delta_g(D_ham_upper: np.ndarray, w_g: float, n_t: int) -> float:
 
 
 # ── RCMD 支配关系与非支配排序 ────────────────────────────────────────
+
+def _mori_threshold(mori_vals: np.ndarray, mode: str = 'mean') -> float:
+    """MORI 可行性阈值（R3-6 阈值敏感性：mean / p40 / p60 / abs0）"""
+    if mode == 'p40':
+        return float(np.percentile(mori_vals, 40))
+    if mode == 'p60':
+        return float(np.percentile(mori_vals, 60))
+    if mode == 'abs0':
+        return 0.0
+    return float(mori_vals.mean())
 
 def rcmd_dominates(
     i: int, j: int,
@@ -335,6 +359,8 @@ def dual_archive_select(
     w_g: float,
     N: int,
     qa_ratio: float = 0.5,
+    mori_threshold_mode: str = 'mean',
+    disable_rcmd: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     C4. 双档案环境选择（Phase 2 替代原单档案选择）
@@ -347,6 +373,8 @@ def dual_archive_select(
       - 从 QA 第一前沿中取鲁棒可行解，按汉明 maximin 距离选取
       - 不足时从 R 中按 MORI 降序补充
       - 负责 HD/PSR 优势，保持多模态多样性
+      - disable_rcmd=True（-C1 变体）时不做鲁棒可行过滤：
+        候选 = QA 第一前沿全体，补充按索引序（完全移除 MORI 对搜索的影响）
 
     返回:
       qa_pop, qa_f1, qa_f2,   — QA档案（用于 HV 计算和论文对比）
@@ -357,7 +385,7 @@ def dual_archive_select(
     N_R = len(R_pop)
     N_qa = max(2, int(round(N * qa_ratio)))
     N_da = max(2, N - N_qa)
-    mori_threshold = float(mori_R.mean())
+    mori_threshold = _mori_threshold(mori_R, mori_threshold_mode)
 
     # ── QA：纯 Pareto 前沿 + 目标拥挤距离 ──
     fronts_ns = fast_nondom_sort(f1_R, f2_R)
@@ -381,17 +409,25 @@ def dual_archive_select(
                 break
     qa_idx = qa_idx[:N_qa]
 
-    # ── DA：从 QA 第一前沿的鲁棒可行解中按汉明 maximin 选取 ──
+    # ── DA：从 QA 第一前沿（的鲁棒可行子集）中按汉明 maximin 选取 ──
     qa_front0 = fronts_ns[0] if fronts_ns else list(range(N_R))
-    # 鲁棒可行候选：QA第一前沿中满足 MORI >= threshold 的解
-    robust_cands = [i for i in qa_front0 if mori_R[i] >= mori_threshold]
-    if len(robust_cands) < N_da:
-        # 补充：从所有 R 中按 MORI 降序填充（不限于 QA 前沿）
-        extra_pool = sorted(
-            [i for i in range(N_R) if i not in robust_cands],
-            key=lambda i: -mori_R[i],
-        )
-        robust_cands = robust_cands + extra_pool
+    if disable_rcmd:
+        # -C1 变体：无鲁棒可行过滤，QA 第一前沿全体为候选；补充按索引序
+        robust_cands = list(qa_front0)
+        if len(robust_cands) < N_da:
+            chosen = set(robust_cands)
+            extra_pool = [i for i in range(N_R) if i not in chosen]
+            robust_cands = robust_cands + extra_pool
+    else:
+        # 鲁棒可行候选：QA第一前沿中满足 MORI >= threshold 的解
+        robust_cands = [i for i in qa_front0 if mori_R[i] >= mori_threshold]
+        if len(robust_cands) < N_da:
+            # 补充：从所有 R 中按 MORI 降序填充（不限于 QA 前沿）
+            extra_pool = sorted(
+                [i for i in range(N_R) if i not in robust_cands],
+                key=lambda i: -mori_R[i],
+            )
+            robust_cands = robust_cands + extra_pool
 
     # Hamming maximin 贪心选取 N_da 个解（最大化最小汉明距离，向量化加速）
     if len(robust_cands) <= N_da:
@@ -580,24 +616,35 @@ def solve_single_phase_rcmd(
     S_fast = max(10, S_full // 3)  # Phase 2 快速代理：精度的 √3 倍误差，速度优先
     # 每代 MORI 消耗：N（offspring评价）+ N×S_fast（offspring MORI，两目标共享邻居）
     # 此处 S_fast 每次 compute_mori 消耗 S_fast 次评价（Bug2修复后共享邻居）
-    nfe_per_refine_gen = N + N * S_fast   # offspring N次 + MORI N×S_fast次
+    if params.budget_aware:
+        # v2：按剩余预算自适应缩放 S_fast，保证初始 MORI + ≥G_target 代深化在预算内
+        budget_total_pre = params.max_nfe if params.max_nfe is not None else N * params.G_max
+        B_refine = budget_total_pre - N * G_explore
+        S_aff = int(B_refine // (N * (1 + params.budget_g_target))) - 1 if N > 0 else 10
+        S_fast = int(max(10, min(S_fast, S_aff)))
+    nfe_per_refine_gen = N + (0 if params.disable_rcmd else N * S_fast)
+    # -C1 变体（disable_rcmd）：搜索不使用 MORI，省下的预算用于更多 Pareto 深化代数
+    #（总 NFE 预算与完整版严格一致，等预算公平比较）
     budget_used = N * G_explore           # Phase1消耗
     budget_total = params.max_nfe if params.max_nfe is not None else N * params.G_max
 
-    # 初始化 pop 的 MORI 缓存（第一次进 Phase 2 时计算）
-    f1_range0 = max(f1_arr.max() - f1_arr.min(), 1e-9)
-    f2_range0 = max(f2_arr.max() - f2_arr.min(), 1e-9)
-    mori_pop = np.array([
-        compute_mori(
-            pop[k], float(f1_arr[k]), float(f2_arr[k]),
-            combo_sets, phase_data, inst,
-            f1_range0, f2_range0,
-            r=params.r, S=S_fast, rng=rng,
-            delta=delta_niche, eps_rel=params.eps_rel, delta_prob=params.delta_prob,
-        )
-        for k in range(N)
-    ])
-    budget_used += N * S_fast   # 初始 pop MORI 计入预算
+    # 初始化 pop 的 MORI 缓存（第一次进 Phase 2 时计算；-C1 变体跳过——搜索不用）
+    if params.disable_rcmd:
+        mori_pop = np.zeros(N)
+    else:
+        f1_range0 = max(f1_arr.max() - f1_arr.min(), 1e-9)
+        f2_range0 = max(f2_arr.max() - f2_arr.min(), 1e-9)
+        mori_pop = np.array([
+            compute_mori(
+                pop[k], float(f1_arr[k]), float(f2_arr[k]),
+                combo_sets, phase_data, inst,
+                f1_range0, f2_range0,
+                r=params.r, S=S_fast, rng=rng,
+                delta=delta_niche, eps_rel=params.eps_rel, delta_prob=params.delta_prob,
+            )
+            for k in range(N)
+        ])
+        budget_used += N * S_fast   # 初始 pop MORI 计入预算
 
     for g in range(params.G_max):   # 循环上限用 G_max，内部按预算退出
         if budget_used + nfe_per_refine_gen > budget_total:
@@ -634,19 +681,23 @@ def solve_single_phase_rcmd(
         budget_used += len(Q)   # offspring 实际数量
 
         # Bug3修复：只对 offspring Q 计算 MORI（pop 的 MORI 从上一代缓存）
+        # -C1 变体：跳过（搜索不使用 MORI）
         f1_R_range = max(max(f1_arr.max(), f1_q.max()) - min(f1_arr.min(), f1_q.min()), 1e-9)
         f2_R_range = max(max(f2_arr.max(), f2_q.max()) - min(f2_arr.min(), f2_q.min()), 1e-9)
-        mori_q = np.array([
-            compute_mori(
-                Q[k], float(f1_q[k]), float(f2_q[k]),
-                combo_sets, phase_data, inst,
-                f1_R_range, f2_R_range,
-                r=params.r, S=S_fast, rng=rng,
-                delta=delta_niche, eps_rel=params.eps_rel, delta_prob=params.delta_prob,
-            )
-            for k in range(len(Q))
-        ])
-        budget_used += len(Q) * S_fast   # offspring MORI 计入预算
+        if params.disable_rcmd:
+            mori_q = np.zeros(len(Q))
+        else:
+            mori_q = np.array([
+                compute_mori(
+                    Q[k], float(f1_q[k]), float(f2_q[k]),
+                    combo_sets, phase_data, inst,
+                    f1_R_range, f2_R_range,
+                    r=params.r, S=S_fast, rng=rng,
+                    delta=delta_niche, eps_rel=params.eps_rel, delta_prob=params.delta_prob,
+                )
+                for k in range(len(Q))
+            ])
+            budget_used += len(Q) * S_fast   # offspring MORI 计入预算
 
         R = np.vstack([pop, Q])
         f1_R = np.concatenate([f1_arr, f1_q])
@@ -657,7 +708,9 @@ def solve_single_phase_rcmd(
 
         # C4: 双档案选择（替代原 RCMD 单档案）
         qa_pop, qa_f1, qa_f2, da_pop, da_f1, da_f2 = dual_archive_select(
-            R, f1_R, f2_R, mori_R, D_ham_R, delta_g, w_g, N, params.qa_ratio
+            R, f1_R, f2_R, mori_R, D_ham_R, delta_g, w_g, N, params.qa_ratio,
+            mori_threshold_mode=params.mori_threshold_mode,
+            disable_rcmd=params.disable_rcmd,
         )
 
         # 合并去重（优先保留 DA，QA 补充）
@@ -691,7 +744,7 @@ def solve_single_phase_rcmd(
     # C4: 最终非支配排序使用 QA 档案（HV计算基准）和 DA 档案（后选择基准）
     # 从最终种群重建 QA/DA 以确保一致性
     D_ham_final = hamming_matrix(pop)
-    final_mori_threshold = float(mori_pop.mean())
+    final_mori_threshold = _mori_threshold(mori_pop, params.mori_threshold_mode)
     w_g_final = history_wg[-1] if history_wg else 0.5
     delta_final = compute_delta_g(
         D_ham_final[np.triu_indices(len(pop), k=1)].astype(float), w_g_final, n_t
@@ -703,9 +756,13 @@ def solve_single_phase_rcmd(
     qa_pareto_idx = np.array(fronts_qa[0]) if fronts_qa else np.arange(len(pop))
 
     # DA：鲁棒可行解中的 RCMD 非支配解，用于后选择和 HD
-    fronts_rcmd = rcmd_nondominated_sort(
-        f1_arr, f2_arr, mori_pop, final_mori_threshold, D_ham_final, delta_final
-    )
+    # -C1 变体：用纯 Pareto 非支配排序替代 RCMD 排序
+    if params.disable_rcmd:
+        fronts_rcmd = fast_nondom_sort(f1_arr, f2_arr)
+    else:
+        fronts_rcmd = rcmd_nondominated_sort(
+            f1_arr, f2_arr, mori_pop, final_mori_threshold, D_ham_final, delta_final
+        )
     da_pareto_idx = np.array(fronts_rcmd[0]) if fronts_rcmd else np.arange(len(pop))
 
     # QA 档案 Pareto 集（HV 计算用）

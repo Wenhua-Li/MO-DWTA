@@ -6,7 +6,9 @@
 
 ## 简介 / Abstract
 
-本项目提供论文 *"A Robust Constrained Multimodal Dominance Evolutionary Algorithm for Multi-objective Dynamic Weapon-Target Assignment"*（MO-DWTA）中提出的 **RCMD-EA** 算法及其对比算法的 Python 实现，以及论文使用的 `I1`–`I10` 测试实例。
+本项目提供论文 *"Robust Constrained Multimodal Dominance Evolution for Dynamic Weapon-Target Assignment"*（MO-DWTA）中提出的 **RCMD-EA** 算法及其对比算法的 Python 实现，以及论文使用的 `I1`–`I10` 测试实例。
+
+> **2026-09 更新（v2，对应修改稿）**：修复了 Phase II 的预算核算缺陷——初版代码中初始 MORI 评估未经预算检查，可能耗尽评价预算导致深化循环无法执行；v2 采用 budget-aware MORI 采样，严格保证与全部基线相同的 `N × G_max` 评价预算。修改稿报告的全部 4,800 次运行均基于 v2 实现。同步新增 `scripts/`（并行实验驱动、统计分析、论文插图生成）与 `tests/`（单元测试）。
 
 RCMD-EA 的核心贡献包括：
 
@@ -74,14 +76,34 @@ Elapsed: 12.3 s
 ```
 MO-DWTA/
 ├── alg_code/          # 核心算法源码
-│   ├── rcmd_ea.py     # RCMD-EA 主算法
+│   ├── rcmd_ea.py     # RCMD-EA 主算法（v2：budget-aware MORI 采样）
 │   ├── problems/      # 问题建模与评估
 │   └── baselines/     # 对比算法（NSGA-II, MOEA/D, SPEA2, CoMMEA, HDMMODE, MMOEADC）
+├── scripts/           # 实验驱动与论文图表生成
+│   ├── runner.py      #   算法注册表 + 并行驱动（--workers/--skip-existing）
+│   ├── analyze_results.py  # 统计分析（Wilcoxon/Friedman）与表格生成
+│   └── gen_revision_figs.py# 论文全部插图与消融明细表生成
+├── tests/             # 单元测试（约束满足/RCMD 无环性/RMI 修复验证）
 ├── instances/         # I1-I10 测试实例
 ├── assets/            # README 展示用示例图片
 ├── demo.py            # 快速开始脚本
 ├── requirements.txt   # Python 依赖
 └── LICENSE            # MIT License
+```
+
+---
+
+## 复现论文实验 / Reproducing the Paper Experiments
+
+```bash
+# 烟测：3 实例 × 3 次独立运行
+python scripts/runner.py --algo rcmd_v2 --instances I1 I2 I3 --runs 3 --workers 8
+
+# 全量主实验：10 实例 × 30 次（修改稿口径）
+python scripts/runner.py --algo rcmd_v2 --instances I1-I10 --runs 30 --workers 8 --skip-existing
+
+# 统计分析与表格生成
+python scripts/analyze_results.py
 ```
 
 ---
