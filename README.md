@@ -2,6 +2,24 @@
 
 多目标动态武器目标分配（MO-D-POWTA）的鲁棒多模态进化优化方法 —— **RCMD-EA** 的官方开源实现。
 
+> **论文已发表 / Paper Published**: X. Yao, W. Li, T. Zhang, R. Wang, and X. Lu, "Robust Constrained Multimodal Dominance evolution for dynamic weapon-target assignment," *Swarm and Evolutionary Computation*, vol. 110, Article 102583, 2026. DOI: [10.1016/j.swevo.2026.102583](https://doi.org/10.1016/j.swevo.2026.102583)
+>
+> 论文定稿 PDF：[202611-SWEC-Robust Constrained Multimodal Dominance Evolution for Dynamic Weapon-Target Assignment.pdf](202611-SWEC-Robust Constrained Multimodal Dominance Evolution for Dynamic Weapon-Target Assignment.pdf) · 补充材料：[supplementary.pdf](supplementary.pdf)
+
+**引用 / Citation:**
+
+```bibtex
+@article{Yao2026RCMDEA,
+  author  = {Yao, Xingyi and Li, Wenhua and Zhang, Tao and Wang, Rui and Lu, Xin},
+  title   = {Robust Constrained Multimodal Dominance evolution for dynamic weapon-target assignment},
+  journal = {Swarm and Evolutionary Computation},
+  volume  = {110},
+  pages   = {102583},
+  year    = {2026},
+  doi     = {10.1016/j.swevo.2026.102583}
+}
+```
+
 ---
 
 ## 简介 / Abstract
@@ -88,7 +106,10 @@ MO-DWTA/
 ├── assets/            # README 展示用示例图片
 ├── demo.py            # 快速开始脚本
 ├── requirements.txt   # Python 依赖
-└── LICENSE            # MIT License
+├── LICENSE            # MIT License
+├── CITATION.cff       # GitHub 原生引用元数据
+├── 202611-SWEC-*.pdf  # 论文定稿（SWEC vol.110, 2026）
+└── supplementary.pdf  # 论文补充材料
 ```
 
 ---

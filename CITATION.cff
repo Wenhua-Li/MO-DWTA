@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: >-
+  If you use this code, please cite the associated paper as well as this repository.
+authors:
+  - family-names: "Yao"
+    given-names: "Xingyi"
+  - family-names: "Li"
+    given-names: "Wenhua"
+  - family-names: "Zhang"
+    given-names: "Tao"
+  - family-names: "Wang"
+    given-names: "Rui"
+  - family-names: "Lu"
+    given-names: "Xin"
+title: "MO-DWTA"
+version: 1.0.0
+date-released: "2026-10-28"
+repository-code: "https://github.com/Wenhua-Li/MO-DWTA"
+license: MIT
+preferred-citation:
+  type: article
+  authors:
+    - family-names: "Yao"
+      given-names: "Xingyi"
+    - family-names: "Li"
+      given-names: "Wenhua"
+    - family-names: "Zhang"
+      given-names: "Tao"
+    - family-names: "Wang"
+      given-names: "Rui"
+    - family-names: "Lu"
+      given-names: "Xin"
+  title: "Robust Constrained Multimodal Dominance evolution for dynamic weapon-target assignment"
+  journal: "Swarm and Evolutionary Computation"
+  volume: 110
+  pages: "102583"
+  year: 2026
+  doi: "10.1016/j.swevo.2026.102583"
